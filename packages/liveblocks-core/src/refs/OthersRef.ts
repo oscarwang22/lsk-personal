@@ -26,10 +26,8 @@ export class OthersRef<
   TUserMeta extends BaseUserMeta
 > extends ImmutableRef<Others<TPresence, TUserMeta>> {
   // To track "others"
-  /** @internal */
-  _connections: { [connectionId: number]: Connection<TUserMeta> };
-  /** @internal */
-  _presences: { [connectionId: number]: TPresence };
+  #connections: { [connectionId: number]: Connection<TUserMeta> };
+  #presences: { [connectionId: number]: TPresence };
 
   //
   // --------------------------------------------------------------
@@ -41,8 +39,7 @@ export class OthersRef<
   // abstraction/helper. Manually maintaining these caches should no longer be
   // necessary.
   //
-  /** @internal */
-  _users: { [connectionId: number]: User<TPresence, TUserMeta> };
+  #users: { [connectionId: number]: User<TPresence, TUserMeta> };
   //
   // --------------------------------------------------------------
   //
@@ -51,15 +48,14 @@ export class OthersRef<
     super();
 
     // Others
-    this._connections = {};
-    this._presences = {};
-    this._users = {};
+    this.#connections = {};
+    this.#presences = {};
+    this.#users = {};
   }
 
-  /** @internal */
-  _toImmutable(): Readonly<Others<TPresence, TUserMeta>> {
+  protected _toImmutable(): Readonly<Others<TPresence, TUserMeta>> {
     const users = compact(
-      Object.keys(this._presences).map((connectionId) =>
+      Object.keys(this.#presences).map((connectionId) =>
         this.getUser(Number(connectionId))
       )
     );
@@ -68,16 +64,15 @@ export class OthersRef<
   }
 
   clearOthers(): void {
-    this._connections = {};
-    this._presences = {};
-    this._users = {};
+    this.#connections = {};
+    this.#presences = {};
+    this.#users = {};
     this.invalidate();
   }
 
-  /** @internal */
-  _getUser(connectionId: number): User<TPresence, TUserMeta> | undefined {
-    const conn = this._connections[connectionId];
-    const presence = this._presences[connectionId];
+  #getUser(connectionId: number): User<TPresence, TUserMeta> | undefined {
+    const conn = this.#connections[connectionId];
+    const presence = this.#presences[connectionId];
     if (conn !== undefined && presence !== undefined) {
       return makeUser(conn, presence);
     }
@@ -86,24 +81,23 @@ export class OthersRef<
   }
 
   getUser(connectionId: number): User<TPresence, TUserMeta> | undefined {
-    const cachedUser = this._users[connectionId];
+    const cachedUser = this.#users[connectionId];
     if (cachedUser) {
       return cachedUser;
     }
 
-    const computedUser = this._getUser(connectionId);
+    const computedUser = this.#getUser(connectionId);
     if (computedUser) {
-      this._users[connectionId] = computedUser;
+      this.#users[connectionId] = computedUser;
       return computedUser;
     }
 
     return undefined;
   }
 
-  /** @internal */
-  _invalidateUser(connectionId: number): void {
-    if (this._users[connectionId] !== undefined) {
-      delete this._users[connectionId];
+  #invalidateUser(connectionId: number): void {
+    if (this.#users[connectionId] !== undefined) {
+      delete this.#users[connectionId];
     }
     this.invalidate();
   }
@@ -118,14 +112,14 @@ export class OthersRef<
     metaUserInfo: TUserMeta["info"],
     metaIsReadonly: boolean
   ): void {
-    this._connections[connectionId] = freeze({
+    this.#connections[connectionId] = freeze({
       connectionId,
       id: metaUserId,
       info: metaUserInfo,
       isReadOnly: metaIsReadonly,
     });
-    if (this._presences[connectionId] !== undefined) {
-      this._invalidateUser(connectionId);
+    if (this.#presences[connectionId] !== undefined) {
+      this.#invalidateUser(connectionId);
     }
   }
 
@@ -134,9 +128,9 @@ export class OthersRef<
    * the presence information.
    */
   removeConnection(connectionId: number): void {
-    delete this._connections[connectionId];
-    delete this._presences[connectionId];
-    this._invalidateUser(connectionId);
+    delete this.#connections[connectionId];
+    delete this.#presences[connectionId];
+    this.#invalidateUser(connectionId);
   }
 
   /**
@@ -144,9 +138,9 @@ export class OthersRef<
    * its known presence data is overwritten.
    */
   setOther(connectionId: number, presence: TPresence): void {
-    this._presences[connectionId] = freeze(compactObject(presence));
-    if (this._connections[connectionId] !== undefined) {
-      this._invalidateUser(connectionId);
+    this.#presences[connectionId] = freeze(compactObject(presence));
+    if (this.#connections[connectionId] !== undefined) {
+      this.#invalidateUser(connectionId);
     }
   }
 
@@ -156,15 +150,15 @@ export class OthersRef<
    * full .setOther() call first.
    */
   patchOther(connectionId: number, patch: Partial<TPresence>): void {
-    const oldPresence = this._presences[connectionId];
+    const oldPresence = this.#presences[connectionId];
     if (oldPresence === undefined) {
       return;
     }
 
     const newPresence = merge(oldPresence, patch);
     if (oldPresence !== newPresence) {
-      this._presences[connectionId] = freeze(newPresence);
-      this._invalidateUser(connectionId);
+      this.#presences[connectionId] = freeze(newPresence);
+      this.#invalidateUser(connectionId);
     }
   }
 }

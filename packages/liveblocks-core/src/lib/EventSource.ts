@@ -46,29 +46,29 @@ export type EventEmitter<T> = (event: T) => void;
  *
  */
 export function makeEventSource<T>(): EventSource<T> {
-  const _onetimeObservers = new Set<Callback<T>>();
-  const _observers = new Set<Callback<T>>();
+  const onetimeObservers = new Set<Callback<T>>();
+  const observers = new Set<Callback<T>>();
 
   function subscribe(callback: Callback<T>): UnsubscribeCallback {
-    _observers.add(callback);
-    return () => _observers.delete(callback);
+    observers.add(callback);
+    return () => observers.delete(callback);
   }
 
   function subscribeOnce(callback: Callback<T>): UnsubscribeCallback {
-    _onetimeObservers.add(callback);
-    return () => _onetimeObservers.delete(callback);
+    onetimeObservers.add(callback);
+    return () => onetimeObservers.delete(callback);
   }
 
   function notify(event: T) {
-    _onetimeObservers.forEach((callback) => callback(event));
-    _onetimeObservers.clear();
+    onetimeObservers.forEach((callback) => callback(event));
+    onetimeObservers.clear();
 
-    _observers.forEach((callback) => callback(event));
+    observers.forEach((callback) => callback(event));
   }
 
   function clear() {
-    _onetimeObservers.clear();
-    _observers.clear();
+    onetimeObservers.clear();
+    observers.clear();
   }
 
   return {

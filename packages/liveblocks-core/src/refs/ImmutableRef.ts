@@ -37,31 +37,27 @@ export function merge<T>(target: T, patch: Partial<T>): T {
  * TODO: Document usage.
  */
 export abstract class ImmutableRef<T> {
-  /** @internal */
-  private _cache: Readonly<T> | undefined;
-
-  /** @internal */
-  private _ev: EventSource<void>;
+  #cache: Readonly<T> | undefined;
+  #ev: EventSource<void>;
 
   constructor() {
-    this._ev = makeEventSource<void>();
+    this.#ev = makeEventSource<void>();
   }
 
   get didInvalidate(): Observable<void> {
-    return this._ev.observable;
+    return this.#ev.observable;
   }
 
-  /** @internal */
   protected abstract _toImmutable(): Readonly<T>;
 
   protected invalidate(): void {
-    if (this._cache !== undefined) {
-      this._cache = undefined;
-      this._ev.notify();
+    if (this.#cache !== undefined) {
+      this.#cache = undefined;
+      this.#ev.notify();
     }
   }
 
   get current(): Readonly<T> {
-    return this._cache ?? (this._cache = this._toImmutable());
+    return this.#cache ?? (this.#cache = this._toImmutable());
   }
 }

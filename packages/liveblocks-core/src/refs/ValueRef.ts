@@ -2,21 +2,19 @@ import { freeze } from "../lib/freeze";
 import { ImmutableRef } from "./ImmutableRef";
 
 export class ValueRef<T> extends ImmutableRef<T> {
-  /** @internal */
-  private _value: Readonly<T>;
+  #value: Readonly<T>;
 
   constructor(initialValue: T) {
     super();
-    this._value = freeze(initialValue);
+    this.#value = freeze(initialValue);
   }
 
-  /** @internal */
-  _toImmutable(): Readonly<T> {
-    return this._value;
+  protected _toImmutable(): Readonly<T> {
+    return this.#value;
   }
 
   set(newValue: T): void {
-    this._value = freeze(newValue);
+    this.#value = freeze(newValue);
     this.invalidate();
   }
 }
@@ -30,9 +28,8 @@ export class DerivedRef<
       : never;
   }
 > extends ImmutableRef<T> {
-  /** @internal */
-  private _refs: Is;
-  private _transform: (...values: Vs) => T;
+  #refs: Is;
+  #transform: (...values: Vs) => T;
 
   constructor(...args: [...otherRefs: Is, transformFn: (...values: Vs) => T]) {
     super();
@@ -40,19 +37,18 @@ export class DerivedRef<
     const transformFn = args.pop() as (...values: Vs) => T;
     const otherRefs = args as unknown as Is;
 
-    this._refs = otherRefs;
-    this._refs.forEach((ref) => {
+    this.#refs = otherRefs;
+    this.#refs.forEach((ref) => {
       // TODO: We should also _unsubscribe_ these at some point... how? Require an explicit .destroy() call?
       ref.didInvalidate.subscribe(() => this.invalidate());
     });
 
-    this._transform = transformFn;
+    this.#transform = transformFn;
   }
 
-  /** @internal */
-  _toImmutable(): Readonly<T> {
-    return this._transform(
-      ...(this._refs.map((ref) => ref.current) as unknown as Vs)
+  protected _toImmutable(): Readonly<T> {
+    return this.#transform(
+      ...(this.#refs.map((ref) => ref.current) as unknown as Vs)
     );
   }
 }
