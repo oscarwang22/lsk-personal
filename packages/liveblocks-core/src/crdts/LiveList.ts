@@ -1273,8 +1273,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     return super.toImmutable() as readonly ToImmutable<TItem>[];
   }
 
-  /** @internal */
-  _toImmutable(): readonly ToImmutable<TItem>[] {
+  protected _toImmutable(): readonly ToImmutable<TItem>[] {
     const result = this._items.map((node) => node.toImmutable());
     return (
       process.env.NODE_ENV === "production" ? result : Object.freeze(result)

@@ -90,8 +90,7 @@ export class LiveRegister<TValue extends Json> extends AbstractCrdt {
     return super._apply(op, isLocal);
   }
 
-  /** @internal */
-  _toImmutable(): Immutable {
+  protected _toImmutable(): Immutable {
     return this._data;
   }
 }

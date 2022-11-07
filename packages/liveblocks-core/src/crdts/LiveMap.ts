@@ -455,8 +455,7 @@ export class LiveMap<
     return super.toImmutable() as ReadonlyMap<TKey, ToImmutable<TValue>>;
   }
 
-  /** @internal */
-  _toImmutable(): ReadonlyMap<TKey, ToImmutable<TValue>> {
+  protected _toImmutable(): ReadonlyMap<TKey, ToImmutable<TValue>> {
     const result: Map<TKey, ToImmutable<TValue>> = new Map();
     for (const [key, value] of this._map) {
       result.set(key, value.toImmutable() as ToImmutable<TValue>);

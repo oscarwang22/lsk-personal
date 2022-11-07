@@ -637,8 +637,7 @@ export class LiveObject<O extends LsonObject> extends AbstractCrdt {
     return super.toImmutable() as ToImmutable<O>;
   }
 
-  /** @internal */
-  _toImmutable(): ToImmutable<O> {
+  protected _toImmutable(): ToImmutable<O> {
     const result: { [key: string]: unknown } = {};
     for (const [key, val] of this._map) {
       result[key] = isLiveStructure(val) ? val.toImmutable() : val;

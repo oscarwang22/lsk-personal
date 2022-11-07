@@ -288,11 +288,9 @@ export abstract class AbstractCrdt {
   abstract _serialize(): SerializedCrdt;
 
   /**
-   * @internal
-   *
    * This caches the result of the last .toImmutable() call for any Live node.
    */
-  private _cachedImmutable?: Immutable;
+  #cachedImmutable?: Immutable;
 
   /**
    * @internal
@@ -302,8 +300,8 @@ export abstract class AbstractCrdt {
    * mutation to the Live node.
    */
   invalidate(): void {
-    if (this._cachedImmutable !== undefined) {
-      this._cachedImmutable = undefined;
+    if (this.#cachedImmutable !== undefined) {
+      this.#cachedImmutable = undefined;
 
       if (this.parent.type === "HasParent") {
         this.parent.node.invalidate();
@@ -311,18 +309,17 @@ export abstract class AbstractCrdt {
     }
   }
 
-  /** @internal */
-  abstract _toImmutable(): Immutable;
+  protected abstract _toImmutable(): Immutable;
 
   /**
    * Return an immutable snapshot of this Live node and its children.
    */
   toImmutable(): Immutable {
-    if (this._cachedImmutable === undefined) {
-      this._cachedImmutable = this._toImmutable();
+    if (this.#cachedImmutable === undefined) {
+      this.#cachedImmutable = this._toImmutable();
     }
 
     // Return cached version
-    return this._cachedImmutable;
+    return this.#cachedImmutable;
   }
 }
