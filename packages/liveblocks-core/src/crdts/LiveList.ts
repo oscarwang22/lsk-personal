@@ -69,6 +69,17 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
   /** @internal */
   private _implicitlyDeletedItems: WeakSet<LiveNode>;
 
+  /**
+   * @internal
+   * Keep an set of all the ids that have been deleted by a set
+   * to ensure they are not reinserted by an insert acknowledge op
+   *
+   * TODO:
+   * Reuse this Set to apply the same logic for deleted items by LiveList.delete
+   * Refactor _detachChild to know if it's coming from an acklowledge op or not
+   */
+  private _unacknowledgedDeletedIds: Set<string>;
+
   /** @internal */
   private _unacknowledgedSets: Map<string, string>;
 
@@ -76,6 +87,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     super();
     this._items = [];
     this._implicitlyDeletedItems = new WeakSet();
+    this._unacknowledgedDeletedIds = new Set();
     this._unacknowledgedSets = new Map();
 
     let position = undefined;
@@ -276,6 +288,10 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
       delta.push(deletedDelta);
     }
 
+    if (this._unacknowledgedDeletedIds.has(nn(op.deletedId))) {
+      this._unacknowledgedDeletedIds.delete(nn(op.deletedId));
+    }
+
     const unacknowledgedOpId = this._unacknowledgedSets.get(op.parentKey);
 
     if (unacknowledgedOpId !== undefined) {
@@ -424,6 +440,12 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
 
   /** @internal */
   private _applyInsertAck(op: CreateChildOp): ApplyResult {
+    if (this._unacknowledgedDeletedIds.has(op.id)) {
+      return {
+        modified: false,
+      };
+    }
+
     const existingItem = this._items.find((item) => item._id === op.id);
     const key = asPos(op.parentKey);
 
@@ -870,7 +892,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     this._pool?.assertStorageIsWritable();
     if (index < 0 || index > this._items.length) {
       throw new Error(
-        `Cannot insert list item at index "${index}". index should be between 0 and ${this._items.length}`
+        `Cannot insert list item at index "${index}". index should be between 0 and ${this._items.length}`
       );
     }
 
@@ -983,7 +1005,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     this._pool?.assertStorageIsWritable();
     if (index < 0 || index >= this._items.length) {
       throw new Error(
-        `Cannot delete list item at index "${index}". index should be between 0 and ${
+        `Cannot delete list item at index "${index}". index should be between 0 and ${
           this._items.length - 1
         }`
       );
@@ -995,8 +1017,8 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     this.invalidate();
 
     if (this._pool) {
-      const childRecordId = item._id;
-      if (childRecordId) {
+      const childId = item._id;
+      if (childId) {
         const storageUpdates = new Map<string, LiveListUpdates<TItem>>();
         storageUpdates.set(
           nn(this._id),
@@ -1006,7 +1028,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
         this._pool.dispatch(
           [
             {
-              id: childRecordId,
+              id: childId,
               opId: this._pool.generateOpId(),
               type: OpCode.DELETE_CRDT,
             },
@@ -1065,7 +1087,7 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
     this._pool?.assertStorageIsWritable();
     if (index < 0 || index >= this._items.length) {
       throw new Error(
-        `Cannot set list item at index "${index}". index should be between 0 and ${
+        `Cannot set list item at index "${index}". index should be between 0 and ${
           this._items.length - 1
         }`
       );
@@ -1076,6 +1098,10 @@ export class LiveList<TItem extends Lson> extends AbstractCrdt {
 
     const existingId = existingItem._id;
     existingItem._detach();
+
+    if (existingId !== undefined) {
+      this._unacknowledgedDeletedIds.add(existingId);
+    }
 
     const value = lsonToLiveNode(item);
     value._setParentLink(this, position);

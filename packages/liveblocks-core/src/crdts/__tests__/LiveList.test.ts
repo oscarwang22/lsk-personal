@@ -673,10 +673,10 @@ describe("LiveList", () => {
     it("set at invalid position should throw", () => {
       const list = new LiveList<string>(["A", "B", "C"]);
       expect(() => list.set(-1, "D")).toThrow(
-        'Cannot set list item at index "-1". index should be between 0 and 2'
+        'Cannot set list item at index "-1". index should be between 0 and 2'
       );
       expect(() => list.set(3, "D")).toThrow(
-        'Cannot set list item at index "3". index should be between 0 and 2'
+        'Cannot set list item at index "3". index should be between 0 and 2'
       );
     });
 
@@ -732,6 +732,70 @@ describe("LiveList", () => {
 
       assertUndoRedo();
     });
+
+    it("fast consecutive set operations should not temporarily override local changes", async () => {
+      const { root, expectStorage, applyRemoteOperations } =
+        await prepareIsolatedStorageTest<{ items: LiveList<string> }>(
+          [
+            createSerializedObject("0:0", {}),
+            createSerializedList("0:1", "0:0", "items"),
+            createSerializedRegister("0:2", "0:1", FIRST_POSITION, "A"),
+          ],
+          1
+        );
+
+      const items = root.get("items");
+
+      // Register id = 1:0
+      items.set(0, "B");
+
+      expectStorage({
+        items: ["B"],
+      })
+
+      // Register id = 1:1
+      items.set(0, "C");
+
+      expectStorage({
+        items: ["C"],
+      })
+
+      // Ack of LiveList.set(0, "B") should be ignored
+      applyRemoteOperations([
+        {
+          id: "1:0",
+          opId: "1:0",
+          type: OpCode.CREATE_REGISTER,
+          parentId: "0:1",
+          parentKey: FIRST_POSITION,
+          data: "B",
+          intent: "set",
+          deletedId: "1:0",
+        },
+      ]);
+
+      expectStorage({
+        items: ["C"],
+      })
+
+      applyRemoteOperations([
+        {
+          id: "1:0",
+          opId: "1:1",
+          type: OpCode.CREATE_REGISTER,
+          parentId: "0:1",
+          parentKey: FIRST_POSITION,
+          data: "C",
+          intent: "set",
+          deletedId: "1:0",
+        },
+      ]);
+
+
+      expectStorage({
+        items: ["C"],
+      });
+    })
   });
 
   describe("conflict", () => {
@@ -1120,6 +1184,66 @@ describe("LiveList", () => {
 
       expectStorage({
         items: ["B", "C"], // C position is shifted
+      });
+    });
+
+    it("fast push + set", async () => {
+      const { root, expectStorage, applyRemoteOperations } =
+        await prepareIsolatedStorageTest<{ items: LiveList<string> }>(
+          [
+            createSerializedObject("0:0", {}),
+            createSerializedList("0:1", "0:0", "items"),
+          ],
+          1
+        );
+
+      const items = root.get("items");
+
+      // Register id = 1:0
+      items.push("A");
+
+      expectStorage({
+        items: ["A"],
+      })
+
+      // Register id = 1:1
+      items.set(0, "B");
+
+      expectStorage({
+        items: ["B"],
+      })
+
+      applyRemoteOperations([
+        {
+          id: "1:0",
+          opId: "1:0",
+          type: OpCode.CREATE_REGISTER,
+          parentId: "0:1",
+          parentKey: FIRST_POSITION,
+          data: "A",
+        },
+      ]);
+
+      expectStorage({
+        items: ["B"],
+      })
+
+      applyRemoteOperations([
+        {
+          id: "1:0",
+          opId: "1:1",
+          type: OpCode.CREATE_REGISTER,
+          parentId: "0:1",
+          parentKey: FIRST_POSITION,
+          data: "B",
+          intent: "set",
+          deletedId: "1:0",
+        },
+      ]);
+
+
+      expectStorage({
+        items: ["B"],
       });
     });
   });
