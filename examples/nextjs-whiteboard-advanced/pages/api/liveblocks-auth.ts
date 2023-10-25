@@ -8,6 +8,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 
 const liveblocks = new Liveblocks({
   secret: process.env.LIVEBLOCKS_SECRET_KEY!,
+
+  // @ts-expect-error
+  baseUrl: "http://127.0.0.1:3333/",
 });
 
 export default async function auth(req: NextApiRequest, res: NextApiResponse) {
