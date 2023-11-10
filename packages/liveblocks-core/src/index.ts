@@ -76,14 +76,16 @@ export { asPos, makePosition } from "./lib/position";
 export type { Resolve } from "./lib/Resolve";
 export { shallow } from "./lib/shallow";
 export { stringify } from "./lib/stringify";
+export type { Brand } from "./lib/utils";
 export {
   b64decode,
   isPlainObject,
+  raise,
   tryParseJson,
   withTimeout,
 } from "./lib/utils";
 export type { CustomAuthenticationResult } from "./protocol/Authentication";
-export type { BaseUserMeta } from "./protocol/BaseUserMeta";
+export type { BaseUserMeta, IUserInfo } from "./protocol/BaseUserMeta";
 export type {
   BroadcastEventClientMsg,
   ClientMsg,
@@ -96,13 +98,11 @@ export type {
 export { ClientMsgCode } from "./protocol/ClientMsg";
 export type {
   AckOp,
-  CreateChildOp,
   CreateListOp,
   CreateMapOp,
   CreateObjectOp,
   CreateOp,
   CreateRegisterOp,
-  CreateRootObjectOp,
   DeleteCrdtOp,
   DeleteObjectKeyOp,
   Op,
@@ -187,7 +187,7 @@ export type { DevTools };
 
 // Comments
 export type { CommentsApi } from "./comments";
-export { createCommentsApi } from "./comments";
+export { CommentsApiError, createCommentsApi } from "./comments";
 export type { BaseMetadata } from "./comments/types/BaseMetadata";
 export type {
   CommentBody,
