@@ -8,6 +8,9 @@ import { NextRequest } from "next/server";
 
 const liveblocks = new Liveblocks({
   secret: process.env.LIVEBLOCKS_SECRET_KEY!,
+
+  // @ts-expect-error
+  baseUrl: "http://127.0.0.1:3333/",
 });
 
 export async function POST(request: NextRequest) {
