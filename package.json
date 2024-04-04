@@ -9,7 +9,8 @@
     "examples/nextjs-whiteboard-advanced",
     "examples/nextjs-yjs-blocknote-advanced",
     "examples/nextjs-spreadsheet-advanced",
-    "examples/nextjs-yjs-monaco"
+    "examples/nextjs-yjs-monaco",
+    "examples/nextjs-live-cursors-chat"
   ],
   "scripts": {
     "build": "turbo run build",
