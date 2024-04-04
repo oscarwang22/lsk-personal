@@ -7,7 +7,7 @@ const client = createClient({
   publicApiKey: process.env.NEXT_PUBLIC_LIVEBLOCKS_PUBLIC_KEY!,
 
   // @ts-expect-error
-  baseUrl: "http://127.0.0.1:3333/",
+  baseUrl: "http://127.0.0.1:8787/",
   enableDebugLogging: true,
 });
 
