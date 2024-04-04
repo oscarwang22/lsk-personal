@@ -8,7 +8,8 @@
     "e2e/next-sandbox",
     "examples/nextjs-whiteboard-advanced",
     "examples/nextjs-yjs-blocknote-advanced",
-    "examples/nextjs-spreadsheet-advanced"
+    "examples/nextjs-spreadsheet-advanced",
+    "examples/nextjs-yjs-monaco"
   ],
   "scripts": {
     "build": "turbo run build",
