@@ -71,7 +71,6 @@ import {
   createSharedContext,
   LiveblocksProvider,
   useClient,
-  useClientOrNull,
 } from "./liveblocks";
 import type {
   CommentReactionOptions,
@@ -2254,27 +2253,6 @@ export function useRoomOrNull<
   E extends Json,
 >(): Room<P, S, U, E> | null {
   return React.useContext(RoomContext) as Room<P, S, U, E> | null;
-}
-
-/**
- * @private
- *
- * This is an internal API, use `createRoomContext` instead.
- */
-export function useRoomContextBundleOrNull() {
-  const client = useClientOrNull();
-  const room = useRoomOrNull<never, never, never, never>();
-  return client && room ? getOrCreateRoomContextBundle(client) : null;
-}
-
-/**
- * @private
- *
- * This is an internal API, use `createRoomContext` instead.
- */
-export function useRoomContextBundle() {
-  const client = useClient();
-  return getOrCreateRoomContextBundle(client);
 }
 
 export function createRoomContext<
