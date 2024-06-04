@@ -1,4 +1,5 @@
 import {
+  LiveblocksProvider,
   useMutation,
   RoomProvider,
   useHistory,
@@ -7,7 +8,7 @@ import {
   useOthersMapped,
   useCanUndo,
   useCanRedo,
-} from "../liveblocks.config";
+} from "@liveblocks/react/suspense";
 import { ClientSideSuspense } from "@liveblocks/react";
 import { LiveList, LiveMap, LiveObject } from "@liveblocks/client";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -50,25 +51,27 @@ export default function Room() {
   );
 
   return (
-    <RoomProvider
-      id={roomId}
-      initialPresence={{
-        selection: [],
-        cursor: null,
-        pencilDraft: null,
-        penColor: null,
-      }}
-      initialStorage={{
-        layers: new LiveMap<string, LiveObject<Layer>>(),
-        layerIds: new LiveList(),
-      }}
-    >
-      <div className={styles.container}>
-        <ClientSideSuspense fallback={<Loading />}>
-          {() => <Canvas />}
-        </ClientSideSuspense>
-      </div>
-    </RoomProvider>
+    <LiveblocksProvider throttle={16} authEndpoint="/api/liveblocks-auth">
+      <RoomProvider
+        id={roomId}
+        initialPresence={{
+          selection: [],
+          cursor: null,
+          pencilDraft: null,
+          penColor: null,
+        }}
+        initialStorage={{
+          layers: new LiveMap<string, LiveObject<Layer>>(),
+          layerIds: new LiveList(),
+        }}
+      >
+        <div className={styles.container}>
+          <ClientSideSuspense fallback={<Loading />}>
+            {() => <Canvas />}
+          </ClientSideSuspense>
+        </div>
+      </RoomProvider>
+    </LiveblocksProvider>
   );
 }
 
