@@ -1,8 +1,3 @@
-/**
- * NOTE: only types should be imported from @liveblocks/core.
- * This is because this package is made to be used in Node.js, and
- * @liveblocks/core has browser-specific code.
- */
 import type {
   BaseMetadata,
   BaseUserMeta,
@@ -37,7 +32,9 @@ import {
   convertToCommentUserReaction,
   convertToInboxNotificationData,
   convertToThreadData,
+  LiveObject,
   objectToQuery,
+  toPlainLson,
 } from "@liveblocks/core";
 
 import { Session } from "./Session";
@@ -706,9 +703,11 @@ export class Liveblocks {
    */
   public async initializeStorageDocument(
     roomId: string,
-    document: PlainLsonObject
+    document: LiveObject<S> | PlainLsonObject
   ): Promise<PlainLsonObject> {
-    const res = await this.post(url`/v2/rooms/${roomId}/storage`, document);
+    const doc =
+      document instanceof LiveObject ? toPlainLson(document) : document;
+    const res = await this.post(url`/v2/rooms/${roomId}/storage`, doc);
     if (!res.ok) {
       const text = await res.text();
       throw new LiveblocksError(res.status, text);

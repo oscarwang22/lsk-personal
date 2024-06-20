@@ -12,6 +12,11 @@
   write access to storage. This will no longer throw, but issue a warning
   message in the console.
 
+### `@liveblocks/node`
+
+- Improve `client.initializeStorageDocument()` which can now take a `LiveObject`
+  instance directly.
+
 ## v2.0.3
 
 ### `@liveblocks/client`
