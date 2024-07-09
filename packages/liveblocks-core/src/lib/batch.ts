@@ -174,6 +174,7 @@ export function createBatchStore<O, I>(
     eventSource.notify();
   }
 
+  // XXX This cannot be `async function` if we want to use it with use(...) in React
   async function get(input: I): Promise<void> {
     const cacheKey = getCacheKey(input);
 
