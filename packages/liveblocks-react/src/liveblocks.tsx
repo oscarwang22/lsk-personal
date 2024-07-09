@@ -33,7 +33,6 @@ import React, {
   useEffect,
   useMemo,
 } from "react";
-import { useSyncExternalStore } from "use-sync-external-store/shim/index.js";
 import { useSyncExternalStoreWithSelector } from "use-sync-external-store/shim/with-selector.js";
 
 import { selectedInboxNotifications } from "./comments/lib/selected-inbox-notifications";
@@ -661,38 +660,28 @@ function useUserSuspense_withClient<U extends BaseUserMeta>(
 ) {
   const usersStore = client[kInternal].usersStore;
 
-  const getUserState = useCallback(
-    () => usersStore.getState(userId),
-    [usersStore, userId]
-  );
-  const userState = getUserState();
+  // Suspend until the user's info is available
+  use(usersStore.get(userId));
 
-  if (!userState || userState.isLoading) {
-    throw usersStore.get(userId);
-  }
+  const state = useUser_withClient(client, userId);
+  assert(!state.isLoading, "Unexpected loading state");
 
-  if (userState.error) {
-    throw userState.error;
-  }
+  // NOTE: Although most "normal" errors will already be thrown by the use(...)
+  // call (if the promise was rejected). However, in the case of this hook
+  // specifically, the resolveUsers call can return `undefined` which is
+  // currently defined as a successful promise resolution, but still should be
+  // considered an error. This is the one case where `useUser_withClient()` can
+  // still return an error response even though the associated promise is not
+  // an error. We should fix this, because it's complicated to reason about!
+  // Goal: ideally the following throw should be removed, and replaced by an
+  // assert(!state.error, ...) call.
 
   // Throw an error if `undefined` was returned by `resolveUsers` for this user ID
-  if (!userState.data) {
-    throw missingUserError(userId);
+  if (state.error) {
+    throw state.error;
   }
 
-  const state = useSyncExternalStore(
-    usersStore.subscribe,
-    getUserState,
-    getUserState
-  );
-  assert(state !== undefined, "Unexpected missing state");
-  assert(!state.isLoading, "Unexpected loading state");
-  assert(!state.error, "Unexpected error state");
-  return {
-    isLoading: false,
-    user: state.data,
-    error: undefined,
-  } as const;
+  return state;
 }
 
 function useRoomInfo_withClient(
@@ -728,39 +717,29 @@ function useRoomInfo_withClient(
 function useRoomInfoSuspense_withClient(client: OpaqueClient, roomId: string) {
   const roomsInfoStore = client[kInternal].roomsInfoStore;
 
-  const getRoomInfoState = useCallback(
-    () => roomsInfoStore.getState(roomId),
-    [roomsInfoStore, roomId]
-  );
-  const roomInfoState = getRoomInfoState();
+  // Suspend until the room's info is available
+  use(roomsInfoStore.get(roomId));
 
-  if (!roomInfoState || roomInfoState.isLoading) {
-    throw roomsInfoStore.get(roomId);
-  }
+  const state = useRoomInfo_withClient(client, roomId);
+  assert(!state.isLoading, "Unexpected loading state");
 
-  if (roomInfoState.error) {
-    throw roomInfoState.error;
-  }
+  // NOTE: Although most "normal" errors will already be thrown by the use(...)
+  // call (if the promise was rejected). However, in the case of this hook
+  // specifically, the resolveRoomsInfo call can return `undefined` which is
+  // currently defined as a successful promise resolution, but still should be
+  // considered an error. This is the one case where `useRoomInfo_withClient()`
+  // can still return an error response even though the associated promise is
+  // not an error. We should fix this, because it's complicated to reason
+  // about!
+  // Goal: ideally the following throw should be removed, and replaced by an
+  // assert(!state.error, ...) call.
 
   // Throw an error if `undefined` was returned by `resolveRoomsInfo` for this room ID
-  if (!roomInfoState.data) {
-    throw missingRoomInfoError(roomId);
+  if (state.error) {
+    throw state.error;
   }
 
-  const state = useSyncExternalStore(
-    roomsInfoStore.subscribe,
-    getRoomInfoState,
-    getRoomInfoState
-  );
-  assert(state !== undefined, "Unexpected missing state");
-  assert(!state.isLoading, "Unexpected loading state");
-  assert(!state.error, "Unexpected error state");
-  assert(state.data !== undefined, "Unexpected missing room info data");
-  return {
-    isLoading: false,
-    info: state.data,
-    error: undefined,
-  } as const;
+  return state;
 }
 
 /** @internal */
