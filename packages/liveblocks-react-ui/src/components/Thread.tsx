@@ -83,6 +83,11 @@ export interface ThreadProps<M extends BaseMetadata = DM>
   showDeletedComments?: CommentProps["showDeleted"];
 
   /**
+   * Whether to show attachments.
+   */
+  showAttachments?: boolean;
+
+  /**
    * The event handler called when changing the resolved status.
    */
   onResolvedChange?: (resolved: boolean) => void;
@@ -112,6 +117,11 @@ export interface ThreadProps<M extends BaseMetadata = DM>
    * The event handler called when clicking on a mention.
    */
   onMentionClick?: CommentProps["onMentionClick"];
+
+  /**
+   * The event handler called when clicking on a comment's attachment.
+   */
+  onAttachmentClick?: CommentProps["onAttachmentClick"];
 
   /**
    * Override the component's strings.
@@ -148,6 +158,7 @@ export const Thread = forwardRef(
       onThreadDelete,
       onAuthorClick,
       onMentionClick,
+      onAttachmentClick,
       overrides,
       className,
       ...props
@@ -281,6 +292,7 @@ export const Thread = forwardRef(
                   onCommentDelete={handleCommentDelete}
                   onAuthorClick={onAuthorClick}
                   onMentionClick={onMentionClick}
+                  onAttachmentClick={onAttachmentClick}
                   autoMarkReadThreadId={
                     index === lastCommentIndex && isUnread
                       ? thread.id

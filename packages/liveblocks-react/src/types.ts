@@ -17,6 +17,7 @@ import type {
   AsyncResultWithDataField,
   BaseMetadata,
   Client,
+  CommentAttachment,
   CommentBody,
   CommentData,
   DRI,
@@ -93,10 +94,18 @@ export type RoomInfoAsyncSuccess = Resolve<
   }
 >;
 
+export type AttachmentUrlAsyncResult = AsyncResultWithDataField<string, "url">;
+export type AttachmentUrlAsyncSuccess = Resolve<
+  AttachmentUrlAsyncResult & {
+    readonly isLoading: false;
+    readonly error?: undefined;
+  }
+>;
+
 // prettier-ignore
 export type CreateThreadOptions<M extends BaseMetadata> =
   Resolve<
-    { body: CommentBody }
+    { body: CommentBody, attachments?: CommentAttachment[]; }
     & PartialUnless<M, { metadata: M }>
   >;
 
@@ -108,12 +117,14 @@ export type EditThreadMetadataOptions<M extends BaseMetadata> = {
 export type CreateCommentOptions = {
   threadId: string;
   body: CommentBody;
+  attachments?: CommentAttachment[];
 };
 
 export type EditCommentOptions = {
   threadId: string;
   commentId: string;
   body: CommentBody;
+  attachments?: CommentAttachment[];
 };
 
 export type DeleteCommentOptions = {
@@ -970,6 +981,14 @@ export type RoomContextBundle<
         (settings: Partial<RoomNotificationSettings>) => void,
       ];
 
+      /**
+       * Returns a presigned URL for an attachment by its ID.
+       *
+       * @example
+       * const { url, error, isLoading } = useAttachmentUrl("at_xxx");
+       */
+      useAttachmentUrl(attachmentId: string): AttachmentUrlAsyncResult;
+
       suspense: Resolve<
         RoomContextBundleCommon<P, S, U, E, M> &
           SharedContextBundle<U>["suspense"] & {
@@ -1058,6 +1077,14 @@ export type RoomContextBundle<
               RoomNotificationSettingsStateSuccess,
               (settings: Partial<RoomNotificationSettings>) => void,
             ];
+
+            /**
+             * Returns a presigned URL for an attachment by its ID.
+             *
+             * @example
+             * const { url } = useAttachmentUrl("at_xxx");
+             */
+            useAttachmentUrl(attachmentId: string): AttachmentUrlAsyncSuccess;
           }
       >;
     } & PrivateRoomContextApi

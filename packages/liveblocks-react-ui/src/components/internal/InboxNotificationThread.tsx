@@ -17,6 +17,7 @@ import * as CommentPrimitive from "../../primitives/Comment";
 import { classNames } from "../../utils/class-names";
 import {
   CommentMention,
+  CommentNonInteractiveFileAttachment,
   CommentNonInteractiveLink,
   CommentNonInteractiveReaction,
 } from "../Comment";
@@ -47,12 +48,16 @@ type InboxNotificationThreadContents =
 interface InboxNotificationCommentProps extends ComponentProps<"div"> {
   comment: CommentData;
   showHeader?: boolean;
+  showAttachments?: boolean;
+  showReactions?: boolean;
   overrides?: Partial<GlobalOverrides & CommentOverrides>;
 }
 
 export function InboxNotificationComment({
   comment,
   showHeader = true,
+  showAttachments = true,
+  showReactions = true,
   overrides,
   className,
   ...props
@@ -83,7 +88,7 @@ export function InboxNotificationComment({
                 Link: CommentNonInteractiveLink,
               }}
             />
-            {comment.reactions.length > 0 && (
+            {showReactions && comment.reactions.length > 0 && (
               <div className="lb-comment-reactions">
                 {comment.reactions.map((reaction) => (
                   <CommentNonInteractiveReaction
@@ -95,6 +100,17 @@ export function InboxNotificationComment({
                 ))}
               </div>
             )}
+            {showAttachments && comment.attachments.length > 0 ? (
+              <div className="lb-comment-attachments">
+                {comment.attachments.map((attachment) => (
+                  <CommentNonInteractiveFileAttachment
+                    key={attachment.id}
+                    attachment={attachment}
+                    overrides={overrides}
+                  />
+                ))}
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="lb-comment-body">

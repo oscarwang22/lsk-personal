@@ -1,12 +1,14 @@
 "use client";
 
 import type {
+  CommentAttachment,
   CommentData,
   CommentReaction as CommentReactionData,
 } from "@liveblocks/core";
 import {
   RoomContext,
   useAddReaction,
+  useAttachmentUrl,
   useDeleteComment,
   useEditComment,
   useMarkThreadAsRead,
@@ -14,6 +16,7 @@ import {
 } from "@liveblocks/react";
 import * as TogglePrimitive from "@radix-ui/react-toggle";
 import type {
+  ComponentProps,
   ComponentPropsWithoutRef,
   FormEvent,
   MouseEvent,
@@ -55,11 +58,14 @@ import * as ComposerPrimitive from "../primitives/Composer";
 import { Timestamp } from "../primitives/Timestamp";
 import { useCurrentUserId } from "../shared";
 import { MENTION_CHARACTER } from "../slate/plugins/mentions";
+import type { CommentAttachmentArgs } from "../types";
 import { classNames } from "../utils/class-names";
+import { download } from "../utils/download";
 import { useRefs } from "../utils/use-refs";
 import { useVisibleCallback } from "../utils/use-visible";
 import { useWindowFocus } from "../utils/use-window-focus";
 import { Composer } from "./Composer";
+import { FileAttachment } from "./internal/Attachment";
 import { Avatar } from "./internal/Avatar";
 import { Button } from "./internal/Button";
 import { Dropdown, DropdownItem, DropdownTrigger } from "./internal/Dropdown";
@@ -98,6 +104,11 @@ export interface CommentProps extends ComponentPropsWithoutRef<"div"> {
   showReactions?: boolean;
 
   /**
+   * Whether to show attachments.
+   */
+  showAttachments?: boolean;
+
+  /**
    * Whether to indent the comment's content.
    */
   indentContent?: boolean;
@@ -121,6 +132,14 @@ export interface CommentProps extends ComponentPropsWithoutRef<"div"> {
    * The event handler called when clicking on a mention.
    */
   onMentionClick?: (userId: string, event: MouseEvent<HTMLElement>) => void;
+
+  /**
+   * The event handler called when clicking on a comment's attachment.
+   */
+  onAttachmentClick?: (
+    args: CommentAttachmentArgs,
+    event: MouseEvent<HTMLElement>
+  ) => void;
 
   /**
    * Override the component's strings.
@@ -156,6 +175,12 @@ interface CommentReactionProps extends ComponentPropsWithoutRef<"button"> {
 }
 
 type CommentNonInteractiveReactionProps = Omit<CommentReactionProps, "comment">;
+
+interface CommentFileAttachmentProps
+  extends ComponentProps<typeof FileAttachment> {
+  attachment: CommentAttachment;
+  onAttachmentClick?: CommentProps["onAttachmentClick"];
+}
 
 export function CommentMention({
   userId,
@@ -331,6 +356,68 @@ export const CommentNonInteractiveReaction = forwardRef<
   );
 });
 
+function CommentFileAttachment({
+  attachment,
+  onAttachmentClick,
+  className,
+  overrides,
+  ...props
+}: CommentFileAttachmentProps) {
+  const { url } = useAttachmentUrl(attachment.id);
+
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLElement>) => {
+      if (!url) {
+        return;
+      }
+
+      const args: CommentAttachmentArgs = { attachment, url };
+
+      onAttachmentClick?.(args, event);
+
+      if (event.isDefaultPrevented()) {
+        return;
+      }
+
+      // Open the attachment in a new tab if the attachment is a PDF,
+      // an image, a video, or audio. Otherwise, download it.
+      if (
+        attachment.mimeType === "application/pdf" ||
+        attachment.mimeType.startsWith("image/") ||
+        attachment.mimeType.startsWith("video/") ||
+        attachment.mimeType.startsWith("audio/")
+      ) {
+        window.open(url, "_blank");
+      } else {
+        download(url, attachment.name);
+      }
+    },
+    [attachment, onAttachmentClick, url]
+  );
+
+  return (
+    <FileAttachment
+      className={classNames("lb-comment-attachment", className)}
+      {...props}
+      attachment={attachment}
+      overrides={overrides}
+      onClick={url ? handleClick : undefined}
+    />
+  );
+}
+
+export function CommentNonInteractiveFileAttachment({
+  className,
+  ...props
+}: CommentFileAttachmentProps) {
+  return (
+    <FileAttachment
+      className={classNames("lb-comment-attachment", className)}
+      {...props}
+    />
+  );
+}
+
 // A void component (which doesn't render anything) responsible for marking a thread
 // as read when the comment it's used in becomes visible.
 // Moving this logic into a separate component allows us to use the visibility
@@ -377,8 +464,10 @@ export const Comment = forwardRef<HTMLDivElement, CommentProps>(
       showDeleted,
       showActions = "hover",
       showReactions = true,
+      showAttachments = true,
       onAuthorClick,
       onMentionClick,
+      onAttachmentClick,
       onCommentEdit,
       onCommentDelete,
       overrides,
@@ -421,7 +510,10 @@ export const Comment = forwardRef<HTMLDivElement, CommentProps>(
     );
 
     const handleEditSubmit = useCallback(
-      ({ body }: ComposerSubmitComment, event: FormEvent<HTMLFormElement>) => {
+      (
+        { body, attachments }: ComposerSubmitComment,
+        event: FormEvent<HTMLFormElement>
+      ) => {
         // TODO: Add a way to preventDefault from within this callback, to override the default behavior (e.g. showing a confirmation dialog)
         onCommentEdit?.(comment);
 
@@ -431,6 +523,7 @@ export const Comment = forwardRef<HTMLDivElement, CommentProps>(
           commentId: comment.id,
           threadId: comment.threadId,
           body,
+          attachments,
         });
       },
       [comment, editComment, onCommentEdit]
@@ -634,8 +727,10 @@ export const Comment = forwardRef<HTMLDivElement, CommentProps>(
                 className="lb-comment-composer"
                 onComposerSubmit={handleEditSubmit}
                 defaultValue={comment.body}
+                defaultAttachments={comment.attachments}
                 autoFocus
                 showAttribution={false}
+                showAttachments={showAttachments}
                 actions={
                   <>
                     <Tooltip
@@ -685,6 +780,18 @@ export const Comment = forwardRef<HTMLDivElement, CommentProps>(
                     Link: CommentLink,
                   }}
                 />
+                {showAttachments && comment.attachments.length > 0 ? (
+                  <div className="lb-comment-attachments">
+                    {comment.attachments.map((attachment) => (
+                      <CommentFileAttachment
+                        key={attachment.id}
+                        attachment={attachment}
+                        overrides={overrides}
+                        onAttachmentClick={onAttachmentClick}
+                      />
+                    ))}
+                  </div>
+                ) : null}
                 {showReactions && comment.reactions.length > 0 && (
                   <div className="lb-comment-reactions">
                     {comment.reactions.map((reaction) => (
