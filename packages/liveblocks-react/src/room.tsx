@@ -26,6 +26,7 @@ import type {
   DS,
   DU,
   EnterOptions,
+  HistoryVersion,
   LiveblocksError,
   OpaqueClient,
   OpaqueRoom,
@@ -92,6 +93,9 @@ import type {
   DeleteCommentOptions,
   EditCommentOptions,
   EditThreadMetadataOptions,
+  HistoryVersionDataState,
+  HistoryVersionsState,
+  HistoryVersionsStateResolved,
   MutationContext,
   OmitFirstArg,
   RoomContextBundle,
@@ -109,7 +113,7 @@ import { useScrollToCommentOnLoadEffect } from "./use-scroll-to-comment-on-load-
 
 const SMOOTH_DELAY = 1000;
 
-const noop = () => {};
+const noop = () => { };
 const identity: <T>(x: T) => T = (x) => x;
 
 const missing_unstable_batchedUpdates = (
@@ -121,8 +125,8 @@ const missing_unstable_batchedUpdates = (
     import { unstable_batchedUpdates } from "react-dom";  // or "react-native"
 
     <RoomProvider id=${JSON.stringify(
-      roomId
-    )} ... unstable_batchedUpdates={unstable_batchedUpdates}>
+    roomId
+  )} ... unstable_batchedUpdates={unstable_batchedUpdates}>
       ...
     </RoomProvider>
 
@@ -372,6 +376,48 @@ function makeExtrasForClient<M extends BaseMetadata>(client: OpaqueClient) {
     }
   }
 
+  async function getRoomVersions(
+    room: OpaqueRoom,
+    { retryCount }: { retryCount: number } = { retryCount: 0 }
+  ) {
+    const queryKey = getVersionsQueryKey(room.id);
+    const existingRequest = requestsByQuery.get(queryKey);
+    console.warn("existing request", existingRequest);
+    if (existingRequest !== undefined) return existingRequest;
+    const request = room[kInternal].listTextVersions();
+    requestsByQuery.set(queryKey, request);
+    store.setQueryState(queryKey, {
+      isLoading: true,
+    });
+    try {
+      const result = await request;
+      const data = (await result.json()) as {
+        versions: HistoryVersion[];
+      };
+      const versions = data.versions.map(({ createdAt, ...version }) => {
+        return {
+          createdAt: new Date(createdAt),
+          ...version,
+        };
+      });
+      store.updateRoomVersions(room.id, versions, queryKey);
+      requestsByQuery.delete(queryKey);
+    } catch (err) {
+      requestsByQuery.delete(queryKey);
+      // Retry the action using the exponential backoff algorithm
+      retryError(() => {
+        void getRoomVersions(room, {
+          retryCount: retryCount + 1,
+        });
+      }, retryCount);
+      store.setQueryState(queryKey, {
+        isLoading: false,
+        error: err as Error,
+      });
+    }
+    return;
+  }
+
   async function getThreadsAndInboxNotifications(
     room: OpaqueRoom,
     queryKey: string,
@@ -512,6 +558,7 @@ function makeExtrasForClient<M extends BaseMetadata>(client: OpaqueClient) {
     getThreadsUpdates,
     getThreadsAndInboxNotifications,
     getInboxNotificationSettings,
+    getRoomVersions,
     onMutationFailure,
   };
 }
@@ -612,6 +659,9 @@ function makeRoomContextBundle<
     useMarkThreadAsRead,
     useThreadSubscription,
 
+    useHistoryVersions,
+    useHistoryVersionData,
+
     useRoomNotificationSettings,
     useUpdateRoomNotificationSettings,
 
@@ -671,6 +721,9 @@ function makeRoomContextBundle<
       useRemoveReaction,
       useMarkThreadAsRead,
       useThreadSubscription,
+
+      // TODO: useHistoryVersionData: useHistoryVersionDataSuspense,
+      useHistoryVersions: useHistoryVersionsSuspense,
 
       useRoomNotificationSettings: useRoomNotificationSettingsSuspense,
       useUpdateRoomNotificationSettings,
@@ -1770,13 +1823,13 @@ function useCreateComment(): (options: CreateCommentOptions) => CommentData {
             const updatedInboxNotifications =
               inboxNotification !== undefined
                 ? {
-                    ...state.inboxNotifications,
-                    [inboxNotification.id]: {
-                      ...inboxNotification,
-                      notifiedAt: newComment.createdAt,
-                      readAt: newComment.createdAt,
-                    },
-                  }
+                  ...state.inboxNotifications,
+                  [inboxNotification.id]: {
+                    ...inboxNotification,
+                    notifiedAt: newComment.createdAt,
+                    readAt: newComment.createdAt,
+                  },
+                }
                 : state.inboxNotifications;
 
             return {
@@ -2453,6 +2506,84 @@ function useRoomNotificationSettings(): [
   }, [settings, updateRoomNotificationSettings]);
 }
 
+function useHistoryVersionData(versionId: string): HistoryVersionDataState {
+  const [state, setState] = React.useState<HistoryVersionDataState>({
+    isLoading: true,
+  });
+  const room = useRoom();
+  React.useEffect(() => {
+    setState({ isLoading: true });
+    const load = async () => {
+      try {
+        const response = await room[kInternal].getTextVersion(versionId);
+        const buffer = await response.arrayBuffer();
+        const data = new Uint8Array(buffer);
+        setState({
+          isLoading: false,
+          data,
+        });
+      } catch (error) {
+        setState({
+          isLoading: false,
+          error:
+            error instanceof Error
+              ? error
+              : new Error(
+                "An unknown error occurred while loading this version"
+              ),
+        });
+      }
+    };
+    void load();
+  }, [room, versionId]);
+  return state;
+}
+
+/**
+ * Returns a history of versions of the current room.
+ *
+ * @example
+ * const { versions, error, isLoading } = useHistoryVersions();
+ */
+function useHistoryVersions(): HistoryVersionsState {
+  const client = useClient();
+  const room = useRoom();
+  const queryKey = getVersionsQueryKey(room.id);
+
+  const { store, getRoomVersions } = getExtrasForClient(client);
+
+  React.useEffect(() => {
+    void getRoomVersions(room);
+  }, [room]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selector = React.useCallback(
+    (state: CacheState<BaseMetadata>): HistoryVersionsState => {
+      const query = state.queries[queryKey];
+      if (query === undefined || query.isLoading) {
+        return {
+          isLoading: true,
+        };
+      }
+
+      return {
+        versions: state.versions[room.id],
+        isLoading: false,
+        error: query.error,
+      };
+    },
+    [room, queryKey] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const state = useSyncExternalStoreWithSelector(
+    store.subscribe,
+    store.get,
+    store.get,
+    selector
+  );
+
+  return state;
+}
+
 /**
  * Returns a function that updates the user's notification settings
  * for the current room.
@@ -2684,6 +2815,49 @@ function useThreadsSuspense<M extends BaseMetadata>(
 }
 
 /**
+ * Returns a history of versions of the current room.
+ *
+ * @example
+ * const { versions } = useHistoryVersions();
+ */
+function useHistoryVersionsSuspense(): HistoryVersionsStateResolved {
+  const client = useClient();
+  const room = useRoom();
+  const queryKey = getVersionsQueryKey(room.id);
+
+  const { store, getRoomVersions } = getExtrasForClient(client);
+
+  const query = store.get().queries[queryKey];
+
+  if (query === undefined || query.isLoading) {
+    throw getRoomVersions(room);
+  }
+
+  if (query.error) {
+    throw query.error;
+  }
+
+  const selector = React.useCallback(
+    (state: CacheState<BaseMetadata>): HistoryVersionsStateResolved => {
+      return {
+        versions: state.versions[room.id],
+        isLoading: false,
+      };
+    },
+    [room, queryKey] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  const state = useSyncExternalStoreWithSelector(
+    store.subscribe,
+    store.get,
+    store.get,
+    selector
+  );
+
+  return state;
+}
+
+/**
  * Returns the user's notification settings for the current room
  * and a function to update them.
  *
@@ -2784,6 +2958,10 @@ export function generateQueryKey(
   options: UseThreadsOptions<BaseMetadata>["query"]
 ) {
   return `${roomId}-${stringify(options ?? {})}`;
+}
+
+export function getVersionsQueryKey(roomId: string) {
+  return `${roomId}-VERSIONS`;
 }
 
 type TypedBundle = RoomContextBundle<DP, DS, DU, DE, DM>;
@@ -3018,6 +3196,24 @@ const _useThreads: TypedBundle["useThreads"] = useThreads;
  */
 const _useThreadsSuspense: TypedBundle["suspense"]["useThreads"] =
   useThreadsSuspense;
+
+/**
+ * Returns a history of versions of the current room.
+ *
+ * @example
+ * const { versions, error, isLoading } = useHistoryVersions();
+ */
+const _useHistoryVersions: TypedBundle["useHistoryVersions"] =
+  useHistoryVersions;
+
+/**
+ * Returns a history of versions of the current room.
+ *
+ * @example
+ * const { versions } = useHistoryVersions();
+ */
+const _useHistoryVersionsSuspense: TypedBundle["suspense"]["useHistoryVersions"] =
+  useHistoryVersionsSuspense;
 
 /**
  * Given a connection ID (as obtained by using `useOthersConnectionIds`), you
@@ -3301,6 +3497,9 @@ export {
   useErrorListener,
   _useEventListener as useEventListener,
   useHistory,
+  useHistoryVersionData,
+  _useHistoryVersions as useHistoryVersions,
+  _useHistoryVersionsSuspense as useHistoryVersionsSuspense,
   _useIsInsideRoom as useIsInsideRoom,
   useLostConnectionListener,
   useMarkThreadAsRead,
